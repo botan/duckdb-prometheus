@@ -248,7 +248,7 @@ fn parse_interval_time(value: &str, name: &str) -> Result<i64> {
 }
 
 fn parse_interval_seconds(value: &str, name: &str) -> Result<(u64, u64)> {
-    let (seconds, fraction) = value.split_once('.').map_or((value, ""), |parts| parts);
+    let (seconds, fraction) = value.split_once('.').unwrap_or((value, ""));
     let seconds = seconds.parse().map_err(|_| unsupported_interval(name))?;
     if fraction.len() > 6 || !fraction.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(unsupported_interval(name));

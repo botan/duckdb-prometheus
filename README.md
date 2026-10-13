@@ -13,7 +13,7 @@ PromQL; analyze them with SQL.
 
 ## Quick start
 
-Requires Rust 1.86+, Python 3.10+, and Make. Targets DuckDB v1.5.5.
+Requires Rust 1.86+, Python 3.10+, and Make. Targets DuckDB v1.5.6.
 
 ```shell
 git clone --recurse-submodules https://github.com/botan/duckdb-prometheus.git

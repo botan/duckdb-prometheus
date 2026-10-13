@@ -19,7 +19,7 @@ strip = true
 
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
-duckdb = { version = "~1.10505.0", features = ["loadable-extension"] }
+duckdb = { version = "~1.10506.0", features = ["loadable-extension"] }
 reqwest = { version = "0.12.28", default-features = false, features = ["blocking", "rustls-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
