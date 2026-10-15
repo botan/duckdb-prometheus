@@ -1,8 +1,11 @@
 # DuckDB Prometheus extension
 
+[![DuckDB](https://img.shields.io/badge/DuckDB-community_extension-fdf1e0?logo=duckdb&logoColor=fff000)](https://duckdb.org/community_extensions/extensions/prometheus.html)
 [![CI](https://github.com/botan/duckdb-prometheus/actions/workflows/MainDistributionPipeline.yml/badge.svg)](https://github.com/botan/duckdb-prometheus/actions/workflows/MainDistributionPipeline.yml)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 [![License](https://img.shields.io/github/license/botan/duckdb-prometheus?color=blue)](LICENSE)
+[![Rust 1.86 or newer](https://img.shields.io/badge/Rust-1.86%2B-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Downloads/week](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcommunity-extensions.duckdb.org%2Fdownloads-last-week.json&query=%24.prometheus&label=downloads%2Fweek&color=blue)](https://duckdb.org/community_extensions/extensions/prometheus)
 
 Query Prometheus-compatible HTTP APIs through DuckDB. Select samples with
 PromQL; analyze them with SQL.
