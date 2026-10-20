@@ -10,33 +10,16 @@
 Query Prometheus-compatible HTTP APIs through DuckDB. Select samples with
 PromQL; analyze them with SQL.
 
-> [!WARNING]
-> Experimental and generated with Codex. Use at your own risk; the API may
-> change without notice.
-
 ## Quick start
 
-Requires Rust 1.86+, Python 3.10+, and Make. Targets DuckDB v1.5.6.
-
-```shell
-git clone --recurse-submodules https://github.com/botan/duckdb-prometheus.git
-cd duckdb-prometheus
-make configure
-make debug
-```
-
-Start DuckDB with unsigned extensions enabled:
-
-```shell
-duckdb -unsigned
-```
-
-Load the debug build:
+Install and load from the [DuckDB community repository](https://duckdb.org/community_extensions/extensions/prometheus):
 
 ```sql
-LOAD './build/debug/prometheus.duckdb_extension';
+INSTALL prometheus FROM community;
+LOAD prometheus;
 ```
 
+Replace `http://localhost:9090` with your Prometheus-compatible endpoint.
 Query `up` over the last 15 minutes:
 
 ```sql
@@ -54,15 +37,6 @@ ORDER BY timestamp DESC, job, instance;
 
 `prometheus_scan` returns one row per sample. `labels` contains the complete
 label map; the `labels` argument also adds selected labels as nullable columns.
-
-To load the local build from Python:
-
-```python
-import duckdb
-
-con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
-con.execute("LOAD './build/debug/prometheus.duckdb_extension'")
-```
 
 ## Examples
 
@@ -153,8 +127,10 @@ Read labels with `labels['job']`. Promote them to columns with
 `timestamp`, or `value`.
 
 Instant vectors, scalars, and matrices use this schema. Plural functions require
-a non-empty list, run requests sequentially, and use `UNION ALL` semantics. One
-failed request fails the query. `request_timeout` applies per request.
+a non-empty list as the first positional argument, such as
+`['up', 'process_cpu_seconds_total']`. Requests run sequentially with `UNION ALL`
+semantics. One failed request fails the query. `request_timeout` applies per
+request.
 
 ## Discovery functions
 
@@ -173,11 +149,20 @@ All discovery functions require `endpoint` and accept `request_timeout`.
 
 ## Build and test
 
+Requires Rust 1.86+, Python 3.10+, and Make. Local builds require exactly
+DuckDB 1.5.6.
+
+```shell
+git clone --recurse-submodules https://github.com/botan/duckdb-prometheus.git
+cd duckdb-prometheus
+make configure
+make debug
+```
+
 `make release` writes `build/release/prometheus.duckdb_extension`.
 
 ```shell
 make check
-make debug
 make test_debug
 make release
 make test_release
@@ -185,6 +170,34 @@ make test_release
 
 `make check` runs formatting, Clippy with warnings denied, and Rust tests. The
 integration tests use an ephemeral local Prometheus-compatible server.
+
+<details>
+<summary>Load a local build</summary>
+
+Start DuckDB with unsigned extensions enabled:
+
+```shell
+duckdb -unsigned
+```
+
+Load the debug build:
+
+```sql
+LOAD './build/debug/prometheus.duckdb_extension';
+```
+
+`make configure` installs DuckDB 1.5.6 in `configure/venv`. Start Python with
+`./configure/venv/bin/python3` (`.\configure\venv\Scripts\python.exe` on Windows),
+then load the local build:
+
+```python
+import duckdb
+
+con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
+con.execute("LOAD './build/debug/prometheus.duckdb_extension'")
+```
+
+</details>
 
 ## Limitations
 
