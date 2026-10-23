@@ -149,8 +149,8 @@ All discovery functions require `endpoint` and accept `request_timeout`.
 
 ## Build and test
 
-Requires Rust 1.86+, Python 3.10+, and Make. Local builds require exactly
-DuckDB 1.5.6.
+Requires Rust 1.86+, Python 3.10+, and Make. Local builds use the stable
+DuckDB 1.5.6 C API and are tested with DuckDB 1.5.6 and 2.0.0.
 
 ```shell
 git clone --recurse-submodules https://github.com/botan/duckdb-prometheus.git
@@ -170,6 +170,7 @@ make test_release
 
 `make check` runs formatting, Clippy with warnings denied, and Rust tests. The
 integration tests use an ephemeral local Prometheus-compatible server.
+CI tests the same debug and release binaries with both supported DuckDB versions.
 
 <details>
 <summary>Load a local build</summary>
@@ -186,7 +187,7 @@ Load the debug build:
 LOAD './build/debug/prometheus.duckdb_extension';
 ```
 
-`make configure` installs DuckDB 1.5.6 in `configure/venv`. Start Python with
+`make configure` installs DuckDB 2.0.0 in `configure/venv`. Start Python with
 `./configure/venv/bin/python3` (`.\configure\venv\Scripts\python.exe` on Windows),
 then load the local build:
 

@@ -4,13 +4,12 @@ PROJ_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 EXTENSION_NAME=prometheus
 
-# Set to 1 to enable Unstable API (binaries will only work on TARGET_DUCKDB_VERSION, forwards compatibility will be broken)
-# Note: currently extension-template-rs requires this, as duckdb-rs relies on unstable C API functionality
-USE_UNSTABLE_C_API=1
+# Use the stable C API so binaries can load on newer DuckDB versions.
+USE_UNSTABLE_C_API=0
 
-# Target DuckDB version
+# Minimum C API version, independent of the DuckDB version used for testing.
 TARGET_DUCKDB_VERSION=v1.5.6
-DUCKDB_TEST_VERSION?=$(patsubst v%,%,$(TARGET_DUCKDB_VERSION))
+DUCKDB_TEST_VERSION?=2.0.0
 
 RUST_ENV=DUCKDB_EXTENSION_NAME=$(EXTENSION_NAME) DUCKDB_EXTENSION_MIN_DUCKDB_VERSION=$(TARGET_DUCKDB_VERSION)
 
