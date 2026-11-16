@@ -102,6 +102,15 @@ ORDER BY metric;
 `query` is raw PromQL. `start` and `end` accept `TIMESTAMPTZ`, `TIMESTAMP`, or
 timestamp strings. Unzoned values are UTC; bounds are inclusive.
 
+HTTP `start`, `end`, and `time` parameters use decimal Unix epoch seconds
+(for example, `1784541600.0006`), preserving fractional precision and omitting
+trailing fractional zeros.
+
+Prometheus rounds numeric timestamps to milliseconds. For example,
+`2026-07-20T10:00:00.000600Z` evaluates at `.001`. This can differ by 1 ms from
+the RFC3339 API path and affect samples, values, or range endpoints near a
+boundary. Other compatible backends may handle precision differently.
+
 | Named argument | Functions | Type | Default |
 |---|---|---|---|
 | `endpoint` | All | `VARCHAR` | Required |

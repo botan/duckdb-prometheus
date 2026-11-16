@@ -5,7 +5,7 @@ use crate::{
         parse_range_response, parse_series_response, parse_string_response,
     },
 };
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Utc};
 use reqwest::blocking::Client;
 use std::{fmt::Write as _, io::Read, time::Duration};
 use url::Url;
@@ -260,7 +260,22 @@ fn validate_time_range(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<()> {
 }
 
 fn format_timestamp(timestamp: DateTime<Utc>) -> String {
-    timestamp.to_rfc3339_opts(SecondsFormat::AutoSi, true)
+    // Use i128 to cover timestamps outside the i64 nanosecond range.
+    let nanos = i128::from(timestamp.timestamp()) * 1_000_000_000
+        + i128::from(timestamp.timestamp_subsec_nanos());
+    let sign = if nanos < 0 { "-" } else { "" };
+    let magnitude = nanos.abs();
+    let seconds = magnitude / 1_000_000_000;
+    let fraction = magnitude % 1_000_000_000;
+    if fraction == 0 {
+        return format!("{sign}{seconds}");
+    }
+
+    let mut formatted = format!("{sign}{seconds}.{fraction:09}");
+    while formatted.ends_with('0') {
+        formatted.pop();
+    }
+    formatted
 }
 
 fn duration_as_seconds(duration: Duration) -> String {
@@ -352,6 +367,27 @@ mod tests {
     }
 
     #[test]
+    fn formats_epoch_seconds_without_losing_fractional_precision() {
+        let cases = [
+            (0, 0, "0"),
+            (1, 0, "1"),
+            (-1, 0, "-1"),
+            (1_784_541_600, 123_456_789, "1784541600.123456789"),
+            (0, 1, "0.000000001"),
+            (0, 999_999_999, "0.999999999"),
+            (-1, 500_000_000, "-0.5"),
+            (-1, 999_999_999, "-0.000000001"),
+            (-2, 999_999_999, "-1.000000001"),
+            (32_503_680_000, 1, "32503680000.000000001"),
+            (-32_503_680_000, 1, "-32503679999.999999999"),
+        ];
+        for (seconds, nanos, expected) in cases {
+            let timestamp = DateTime::from_timestamp(seconds, nanos).expect("valid timestamp");
+            assert_eq!(format_timestamp(timestamp), expected, "{timestamp}");
+        }
+    }
+
+    #[test]
     fn builds_range_and_instant_urls_from_shared_endpoint() {
         let range = RangeQueryConfig::new(
             client("http://localhost:9090"),
@@ -374,8 +410,8 @@ mod tests {
         );
         assert_eq!(range_url.path(), "/api/v1/query_range");
         assert_eq!(pairs(&range_url)["query"], r#"up{job="api server"}"#);
-        assert_eq!(pairs(&range_url)["start"], "2026-07-20T10:00:00Z");
-        assert_eq!(pairs(&range_url)["end"], "2026-07-20T11:00:00Z");
+        assert_eq!(pairs(&range_url)["start"], "1784541600");
+        assert_eq!(pairs(&range_url)["end"], "1784545200");
         assert_eq!(pairs(&range_url)["step"], "60");
 
         let instant = InstantQueryConfig::new(
@@ -393,7 +429,7 @@ mod tests {
             ],
         );
         assert_eq!(instant_url.path(), "/api/v1/query");
-        assert_eq!(pairs(&instant_url)["time"], "2026-07-20T10:00:00Z");
+        assert_eq!(pairs(&instant_url)["time"], "1784541600");
     }
 
     #[test]
