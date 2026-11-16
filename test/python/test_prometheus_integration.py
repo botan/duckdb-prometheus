@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import threading
 import unittest
@@ -48,6 +49,13 @@ class PrometheusHandler(BaseHTTPRequestHandler):
         if handler is None:
             self._json_response(404, {"status": "error", "error": "wrong path"})
             return
+        for name in ("start", "end", "time"):
+            for value in parameters.get(name, []):
+                if re.fullmatch(r"-?[0-9]+(?:\.[0-9]+)?", value) is None:
+                    self._json_response(
+                        400, {"status": "error", "error": "nonnumeric timestamp"}
+                    )
+                    return
         handler(parameters)
 
     def _handle_range(self, parameters: dict[str, list[str]]) -> None:
@@ -155,8 +163,8 @@ class PrometheusHandler(BaseHTTPRequestHandler):
         else:
             expected = {
                 "query": ['node_cpu_seconds_total{mode="idle"}'],
-                "start": ["2026-07-20T10:00:00Z"],
-                "end": ["2026-07-20T11:00:00Z"],
+                "start": ["1784541600"],
+                "end": ["1784545200"],
                 "step": ["60"],
             }
             if parameters != expected:
@@ -475,8 +483,8 @@ class PrometheusIntegrationTest(unittest.TestCase):
             """
             SELECT count(*) FROM prometheus_scan(
                 'empty_query',
-                '2026-07-20 10:00:00+00',
-                '2026-07-20 11:00:00+00',
+                '1969-12-31T23:59:59.5Z',
+                '2026-07-20T10:00:00.000600Z',
                 endpoint := ?
             )
             """,
@@ -484,8 +492,8 @@ class PrometheusIntegrationTest(unittest.TestCase):
         ).fetchone()[0]
         self.assertEqual(count, 0)
         parameters = PrometheusHandler.requests[-1]["parameters"]
-        self.assertEqual(parameters["start"], ["2026-07-20T10:00:00Z"])
-        self.assertEqual(parameters["end"], ["2026-07-20T11:00:00Z"])
+        self.assertEqual(parameters["start"], ["-0.5"])
+        self.assertEqual(parameters["end"], ["1784541600.0006"])
         self.assertEqual(parameters["step"], ["60"])
 
         labels = self.connection.execute(
@@ -542,7 +550,7 @@ class PrometheusIntegrationTest(unittest.TestCase):
             FROM prometheus_query(
                 'instant_vector',
                 endpoint := ?,
-                evaluation_time := '2026-07-20 10:00:00+00',
+                evaluation_time := '2026-07-20T10:00:00.999600Z',
                 labels := ['job']
             )
             """,
@@ -550,7 +558,7 @@ class PrometheusIntegrationTest(unittest.TestCase):
         ).fetchall()
         self.assertEqual(vector, [("api", 1_784_541_600_000_000, 1.0)])
         parameters = PrometheusHandler.requests[-1]["parameters"]
-        self.assertEqual(parameters["time"], ["2026-07-20T10:00:00Z"])
+        self.assertEqual(parameters["time"], ["1784541600.9996"])
 
         scalar = self.connection.execute(
             """
@@ -585,6 +593,9 @@ class PrometheusIntegrationTest(unittest.TestCase):
         ).fetchall()
 
         self.assertEqual(rows, [(7.0, None), (1.0, None), (7.0, None)])
+        for request in PrometheusHandler.requests[request_offset:]:
+            self.assertEqual(request["parameters"]["start"], ["1784541600"])
+            self.assertEqual(request["parameters"]["end"], ["1784545200"])
         queries = [
             request["parameters"]["query"][0]
             for request in PrometheusHandler.requests[request_offset:]
@@ -609,6 +620,8 @@ class PrometheusIntegrationTest(unittest.TestCase):
         ).fetchall()
 
         self.assertEqual(rows, [("api", 1.0), (None, 2.0), ("api", 1.0)])
+        for request in PrometheusHandler.requests[request_offset:]:
+            self.assertEqual(request["parameters"]["time"], ["1784541600"])
         queries = [
             request["parameters"]["query"][0]
             for request in PrometheusHandler.requests[request_offset:]
@@ -618,6 +631,7 @@ class PrometheusIntegrationTest(unittest.TestCase):
             ["instant_empty", "instant_vector", "instant_scalar", "instant_vector"],
         )
 
+        request_offset = len(PrometheusHandler.requests)
         with self.assertRaisesRegex(duckdb.Error, "unsupported resultType.*string"):
             self.connection.execute(
                 """
@@ -629,6 +643,8 @@ class PrometheusIntegrationTest(unittest.TestCase):
                 """,
                 [self.endpoint],
             ).fetchall()
+        for request in PrometheusHandler.requests[request_offset:]:
+            self.assertNotIn("time", request["parameters"])
 
     def test_discovery_helpers_and_parameters(self) -> None:
         labels = self.connection.execute(
@@ -647,18 +663,23 @@ class PrometheusIntegrationTest(unittest.TestCase):
         self.assertEqual(labels, [("__name__",), ("instance",), ("job",)])
         parameters = PrometheusHandler.requests[-1]["parameters"]
         self.assertEqual(parameters["match[]"], ['{job="api"}'])
-        self.assertEqual(parameters["start"], ["2026-07-20T10:00:00Z"])
-        self.assertEqual(parameters["end"], ["2026-07-20T11:00:00Z"])
+        self.assertEqual(parameters["start"], ["1784541600"])
+        self.assertEqual(parameters["end"], ["1784545200"])
 
         values = self.connection.execute(
             """
             SELECT value
-            FROM prometheus_label_values('job', endpoint := ?)
+            FROM prometheus_label_values(
+                'job', endpoint := ?, start_time := '1969-12-31T23:59:59.5Z'
+            )
             ORDER BY value
             """,
             [self.endpoint],
         ).fetchall()
         self.assertEqual(values, [("api",), ("prometheus",)])
+        parameters = PrometheusHandler.requests[-1]["parameters"]
+        self.assertEqual(parameters["start"], ["-0.5"])
+        self.assertNotIn("end", parameters)
 
         utf8_values = self.connection.execute(
             """
@@ -669,18 +690,27 @@ class PrometheusIntegrationTest(unittest.TestCase):
             [self.endpoint],
         ).fetchall()
         self.assertEqual(utf8_values, [("200",), ("500",)])
+        parameters = PrometheusHandler.requests[-1]["parameters"]
+        self.assertNotIn("start", parameters)
+        self.assertNotIn("end", parameters)
 
         series = self.connection.execute(
             """
             SELECT labels
-            FROM prometheus_series('{job="api"}', endpoint := ?)
+            FROM prometheus_series(
+                '{job="api"}', endpoint := ?,
+                end_time := '2026-07-20T10:00:00.000600Z'
+            )
             ORDER BY labels['instance']
             """,
             [self.endpoint],
         ).fetchall()
         self.assertEqual(series[0][0]["instance"], "host-a")
         self.assertEqual(series[1][0]["instance"], "host-b")
-        self.assertEqual(PrometheusHandler.requests[-1]["parameters"]["match[]"], ['{job="api"}'])
+        parameters = PrometheusHandler.requests[-1]["parameters"]
+        self.assertEqual(parameters["match[]"], ['{job="api"}'])
+        self.assertNotIn("start", parameters)
+        self.assertEqual(parameters["end"], ["1784541600.0006"])
 
     def test_metadata_helper_and_projection(self) -> None:
         rows = self.connection.execute(
